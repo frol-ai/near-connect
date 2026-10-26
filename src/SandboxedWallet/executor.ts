@@ -9,9 +9,17 @@ import IframeExecutor from "./iframe";
 
 const cacheId = uuid4();
 
+interface CameraSession {
+  stream: MediaStream;
+  video: HTMLVideoElement;
+  canvas: HTMLCanvasElement;
+}
+
 class SandboxExecutor {
   private activePanels: Record<string, Window> = {};
   readonly storageSpace: string;
+  /** Live camera streams run on behalf of sandboxed wallets, per iframe. */
+  private cameras = new Map<string, CameraSession>();
 
   constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {
     this.storageSpace = manifest.id;
@@ -73,6 +81,35 @@ class SandboxExecutor {
 
     if (event.data.method === "ui.hideIframe") {
       iframe.hide();
+      success(null);
+      return;
+    }
+
+    // Camera bridge: a sandboxed (opaque-origin) iframe gets no camera
+    // permission prompt of its own, so the dApp page opens the camera (the
+    // prompt names the dApp) and hands frames to the wallet as ImageData.
+    if (event.data.method === "camera.start") {
+      this.assertPermissions(iframe, "camera", event);
+      try {
+        success(await this.startCamera(iframe, event.data.params ?? {}));
+      } catch (e: any) {
+        failed({ name: e?.name ?? "Error", message: e?.message ?? String(e) });
+      }
+      return;
+    }
+
+    if (event.data.method === "camera.frame") {
+      this.assertPermissions(iframe, "camera", event);
+      try {
+        success(this.cameraFrame(iframe, event.data.params ?? {}));
+      } catch (e: any) {
+        failed({ name: e?.name ?? "Error", message: e?.message ?? String(e) });
+      }
+      return;
+    }
+
+    if (event.data.method === "camera.stop") {
+      this.releaseCamera(iframe);
       success(null);
       return;
     }
@@ -367,6 +404,65 @@ class SandboxExecutor {
       }
     });
     // });
+  }
+
+  // ─── Camera bridge ─────────────────────────────────────────────────────────
+
+  private async startCamera(iframe: IframeExecutor, params: { facingMode?: string; width?: number; height?: number }) {
+    this.releaseCamera(iframe);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw Object.assign(new Error("Camera is not available in this browser"), { name: "NotSupportedError" });
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: params.facingMode ?? "environment" },
+        width: { ideal: params.width ?? 1920 },
+        height: { ideal: params.height ?? 1080 },
+      },
+    });
+
+    // The video must be in the document to keep decoding frames; keep it out of sight.
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("aria-hidden", "true");
+    video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px;";
+    video.srcObject = stream;
+    document.body.appendChild(video);
+    await video.play().catch(() => {});
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => video.addEventListener("loadeddata", () => resolve(), { once: true }));
+    }
+
+    this.cameras.set(iframe.origin, { stream, video, canvas: document.createElement("canvas") });
+    const settings = stream.getVideoTracks()[0]?.getSettings() ?? {};
+    return { facingMode: settings.facingMode ?? null, width: video.videoWidth, height: video.videoHeight };
+  }
+
+  /** The current camera frame, downscaled so its longer edge is at most `maxEdge`. */
+  private cameraFrame(iframe: IframeExecutor, params: { maxEdge?: number }): ImageData {
+    const session = this.cameras.get(iframe.origin);
+    if (!session) throw Object.assign(new Error("Camera is not running"), { name: "InvalidStateError" });
+    const { video, canvas } = session;
+    if (video.videoWidth === 0) throw Object.assign(new Error("Camera is not ready"), { name: "InvalidStateError" });
+    const maxEdge = Math.min(Math.max(params.maxEdge ?? 1280, 160), 1920);
+    const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  /** Stop the camera run for `iframe` (on camera.stop, dispose, or close). */
+  releaseCamera(iframe: IframeExecutor) {
+    const session = this.cameras.get(iframe.origin);
+    if (!session) return;
+    this.cameras.delete(iframe.origin);
+    session.stream.getTracks().forEach((track) => track.stop());
+    session.video.srcObject = null;
+    session.video.remove();
   }
 
   async getAllStorage() {

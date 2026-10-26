@@ -51,6 +51,7 @@ class IframeExecutor {
       onReject: () => {
         this.disposed = true;
         window.removeEventListener("message", this.handler);
+        this.executor.releaseCamera(this);
         this.events.emit("close", {});
         this.popup.destroy();
       },
@@ -81,6 +82,7 @@ class IframeExecutor {
   dispose() {
     this.disposed = true;
     window.removeEventListener("message", this.handler);
+    this.executor.releaseCamera(this);
     this.popup.destroy();
   }
 }
