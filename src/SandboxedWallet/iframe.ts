@@ -35,6 +35,7 @@ class IframeExecutor {
     if (this.executor.checkPermissions("clipboardRead")) iframeAllowedPermissions.push("clipboard-read;");
     if (this.executor.checkPermissions("clipboardWrite")) iframeAllowedPermissions.push("clipboard-write;");
     if (this.executor.checkPermissions("bluetooth")) iframeAllowedPermissions.push("bluetooth *;");
+    if (this.executor.checkPermissions("camera")) iframeAllowedPermissions.push("camera *;");
     this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 
