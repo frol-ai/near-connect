@@ -87,6 +87,8 @@ export interface WalletPermissions {
     hid?: boolean;
     bluetooth?: boolean;
     webauthn?: boolean;
+    /** Camera access (e.g. scanning QR codes from air-gapped wallets). */
+    camera?: boolean;
 }
 export interface SignAndSendTransactionParams {
     network?: Network;
@@ -199,6 +201,14 @@ export interface WalletManifest {
     type: "sandbox" | "injected";
     permissions: WalletPermissions;
     features: WalletFeatures;
+    /**
+     * Keep the wallet's sandbox iframe alive (hidden) between calls instead of
+     * creating a fresh one per call — for executors that hold a live device
+     * connection (e.g. Ledger over Bluetooth, which would otherwise ask the user
+     * to pick the device again on every request). The iframe is disposed on
+     * `signOut` or when the user closes the wallet modal.
+     */
+    keepAlive?: boolean;
     debug?: boolean;
 }
 export interface WalletFeatures {
@@ -210,6 +220,8 @@ export interface WalletFeatures {
     signInAndSignMessage: boolean;
     signInWithFunctionCallKey: boolean;
     signDelegateActions: boolean;
+    /** The wallet can sign AddKey with gasKeyInfo, TransferToGasKey and WithdrawFromGasKey (protocol 85+). Off unless verified per wallet. */
+    gasKeys?: boolean;
     resolveAuth: boolean;
     mainnet: boolean;
     testnet: boolean;

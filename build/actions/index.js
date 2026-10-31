@@ -10,10 +10,20 @@ const deserializeArgs = (args) => {
         return args;
     }
 };
+// near-api-js `Enum` instances store the chosen variant under `enum` and may
+// carry the *inactive* variant key as an own `undefined` property, so `in`
+// checks are only safe as a fallback for enum-less, hand-shaped objects
+// (e.g. `{ AccountId: null }`). A variant key whose value is `null` — like
+// `GlobalContractDeployMode({ AccountId: null })` — must still be detected.
+const isFullAccessPermission = (permission) => permission.enum != null ? permission.enum === "fullAccess" : "fullAccess" in permission;
+const isAccountIdDeployMode = (deployMode) => deployMode.enum != null ? deployMode.enum === "AccountId" : "AccountId" in deployMode;
 const nearActionsToConnectorActions = (actions) => {
     return actions.map((action) => {
         if ("type" in action)
             return action;
+        if (action.signedDelegate) {
+            throw new Error("SignedDelegate actions cannot be sent through the wallet connector; wallets sign delegates via signDelegateActions");
+        }
         if (action.functionCall) {
             return {
                 type: "FunctionCall",
@@ -30,7 +40,7 @@ const nearActionsToConnectorActions = (actions) => {
                 type: "DeployGlobalContract",
                 params: {
                     code: action.deployGlobalContract.code,
-                    deployMode: action.deployGlobalContract.deployMode.AccountId ? "AccountId" : "CodeHash",
+                    deployMode: isAccountIdDeployMode(action.deployGlobalContract.deployMode) ? "AccountId" : "CodeHash",
                 },
             };
         }
@@ -38,12 +48,13 @@ const nearActionsToConnectorActions = (actions) => {
             return { type: "CreateAccount" };
         }
         if (action.useGlobalContract) {
+            const identifier = action.useGlobalContract.contractIdentifier;
             return {
                 type: "UseGlobalContract",
                 params: {
-                    contractIdentifier: action.useGlobalContract.contractIdentifier.AccountId
-                        ? { accountId: action.useGlobalContract.contractIdentifier.AccountId }
-                        : { codeHash: (0, base58_1.encodeBase58)(action.useGlobalContract.contractIdentifier.CodeHash) },
+                    contractIdentifier: identifier.AccountId != null
+                        ? { accountId: identifier.AccountId }
+                        : { codeHash: (0, base58_1.encodeBase58)(identifier.CodeHash) },
                 },
             };
         }
@@ -81,19 +92,30 @@ const nearActionsToConnectorActions = (actions) => {
             };
         }
         if (action.addKey) {
+            const { permission } = action.addKey.accessKey;
+            let mapped;
+            if (permission.functionCall) {
+                mapped = {
+                    receiverId: permission.functionCall.receiverId,
+                    allowance: permission.functionCall.allowance?.toString(),
+                    methodNames: permission.functionCall.methodNames,
+                };
+            }
+            else if (isFullAccessPermission(permission)) {
+                mapped = "FullAccess";
+            }
+            else {
+                // Never guess: an unknown permission (a typo, a gas-key permission, ...)
+                // must not be escalated to a full-access key.
+                throw new Error("Unsupported access-key permission on AddKey: only functionCall and fullAccess can be sent through the wallet connector (pass a ConnectorAction otherwise)");
+            }
             return {
                 type: "AddKey",
                 params: {
                     publicKey: action.addKey.publicKey.toString(),
                     accessKey: {
                         nonce: Number(action.addKey.accessKey.nonce),
-                        permission: action.addKey.accessKey.permission.functionCall
-                            ? {
-                                receiverId: action.addKey.accessKey.permission.functionCall.receiverId,
-                                allowance: action.addKey.accessKey.permission.functionCall.allowance?.toString(),
-                                methodNames: action.addKey.accessKey.permission.functionCall.methodNames,
-                            }
-                            : "FullAccess",
+                        permission: mapped,
                     },
                 },
             };

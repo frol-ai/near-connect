@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SandboxWallet = void 0;
 const actions_1 = require("../actions");
+const gas_keys_1 = require("../actions/gas-keys");
 const resolveAuth_1 = require("../helpers/resolveAuth");
 const executor_1 = __importDefault(require("./executor"));
 class SandboxWallet {
@@ -49,6 +50,7 @@ class SandboxWallet {
     }
     async signAndSendTransaction(params) {
         const actions = (0, actions_1.nearActionsToConnectorActions)(params.actions);
+        (0, gas_keys_1.assertGasKeyActionsSupported)(this.manifest.features, actions, this.manifest.name);
         const args = { ...params, actions, network: params.network ?? this.connector.network };
         return this.executor.call("wallet:signAndSendTransaction", args);
     }
@@ -57,6 +59,7 @@ class SandboxWallet {
             actions: (0, actions_1.nearActionsToConnectorActions)(transaction.actions),
             receiverId: transaction.receiverId,
         }));
+        (0, gas_keys_1.assertGasKeyActionsSupported)(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
         const args = { ...params, transactions, network: params.network ?? this.connector.network };
         return this.executor.call("wallet:signAndSendTransactions", args);
     }
@@ -73,6 +76,7 @@ class SandboxWallet {
             })),
             network: params.network ?? this.connector.network,
         };
+        (0, gas_keys_1.assertGasKeyActionsSupported)(this.manifest.features, args.delegateActions.flatMap((delegateAction) => delegateAction.actions), this.manifest.name);
         return this.executor.call("wallet:signDelegateActions", args);
     }
     async resolveAuth(params) {

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyAccessKeyAuthorization = exports.parseAccessKeyAuthorization = exports.encodeAccessKeyAuthorization = exports.nep413Recipient = exports.toNep413Payload = exports.offchainMessageHash = exports.newOffchainMessage = exports.defaultResolveAuthViaSignMessage = exports.verifyResolveAuth = exports.nearActionsToConnectorActions = exports.NearConnector = exports.InjectedWallet = exports.SandboxWallet = exports.ParentFrameWallet = exports.LocalStorage = void 0;
+exports.verifyAccessKeyAuthorization = exports.parseAccessKeyAuthorization = exports.encodeAccessKeyAuthorization = exports.nep413Recipient = exports.toNep413Payload = exports.offchainMessageHash = exports.newOffchainMessage = exports.defaultResolveAuthViaSignMessage = exports.verifyResolveAuth = exports.assertGasKeyActionsSupported = exports.isGasKeyAction = exports.nearActionsToConnectorActions = exports.NearConnector = exports.InjectedWallet = exports.SandboxWallet = exports.ParentFrameWallet = exports.LocalStorage = void 0;
 var storage_1 = require("./helpers/storage");
 Object.defineProperty(exports, "LocalStorage", { enumerable: true, get: function () { return storage_1.LocalStorage; } });
 var ParentFrameWallet_1 = require("./ParentFrameWallet");
@@ -13,6 +13,9 @@ var NearConnector_1 = require("./NearConnector");
 Object.defineProperty(exports, "NearConnector", { enumerable: true, get: function () { return NearConnector_1.NearConnector; } });
 var actions_1 = require("./actions");
 Object.defineProperty(exports, "nearActionsToConnectorActions", { enumerable: true, get: function () { return actions_1.nearActionsToConnectorActions; } });
+var gas_keys_1 = require("./actions/gas-keys");
+Object.defineProperty(exports, "isGasKeyAction", { enumerable: true, get: function () { return gas_keys_1.isGasKeyAction; } });
+Object.defineProperty(exports, "assertGasKeyActionsSupported", { enumerable: true, get: function () { return gas_keys_1.assertGasKeyActionsSupported; } });
 var verifyResolveAuth_1 = require("./helpers/verifyResolveAuth");
 Object.defineProperty(exports, "verifyResolveAuth", { enumerable: true, get: function () { return verifyResolveAuth_1.verifyResolveAuth; } });
 var resolveAuth_1 = require("./helpers/resolveAuth");

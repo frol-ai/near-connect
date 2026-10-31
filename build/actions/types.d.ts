@@ -29,14 +29,24 @@ export interface StakeAction {
         publicKey: string;
     };
 }
+/**
+ * Gas keys (protocol 85+): an access key with its own prepaid balance that
+ * pays the gas of whatever it signs, over `numNonces` independent nonce lanes.
+ * An `AddKey` creates one when `params.gasKeyInfo` is present: a "FullAccess"
+ * permission becomes GasKeyFullAccess, a function-call permission becomes
+ * GasKeyFunctionCall (which cannot carry an allowance — the balance is the
+ * allowance). Field names follow Meteor's executor format.
+ */
+export interface GasKeyInfo {
+    /** yoctoNEAR as a decimal string. Must be "0" on AddKey; fund it afterwards with TransferToGasKey. */
+    balance: string;
+    /** Independent nonce lanes, 1..1024. The AddKey fee grows with it. */
+    numNonces: number;
+}
 export interface AddKeyAction {
     type: "AddKey";
     params: {
         publicKey: string;
-        gasKeyInfo?: {
-            balance: string;
-            numNonces: number;
-        };
         accessKey: {
             nonce?: number;
             permission: "FullAccess" | {
@@ -45,6 +55,8 @@ export interface AddKeyAction {
                 methodNames?: Array<string>;
             };
         };
+        /** Present ⇒ this AddKey creates a gas key (see GasKeyInfo). */
+        gasKeyInfo?: GasKeyInfo;
     };
 }
 export interface DeleteKeyAction {
@@ -77,6 +89,7 @@ export interface DeployGlobalContractAction {
         deployMode: "CodeHash" | "AccountId";
     };
 }
+/** Fund a gas key's balance. Any account may send it; `deposit` leaves the sender. */
 export interface TransferToGasKeyAction {
     type: "TransferToGasKey";
     params: {
@@ -84,6 +97,7 @@ export interface TransferToGasKeyAction {
         deposit: string;
     };
 }
+/** Move `amount` from a gas key back to its account. Only the owning account may sign it; not allowed inside a delegate. */
 export interface WithdrawFromGasKeyAction {
     type: "WithdrawFromGasKey";
     params: {

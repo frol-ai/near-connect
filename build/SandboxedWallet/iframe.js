@@ -10,6 +10,7 @@ const code_1 = __importDefault(require("./code"));
 class IframeExecutor {
     executor;
     origin;
+    disposed = false;
     iframe = document.createElement("iframe");
     events = new events_1.EventEmitter();
     popup;
@@ -44,6 +45,8 @@ class IframeExecutor {
             iframeAllowedPermissions.push("publickey-credentials-create *;");
             iframeAllowedPermissions.push("publickey-credentials-get *;");
         }
+        if (this.executor.checkPermissions("camera"))
+            iframeAllowedPermissions.push("camera *;");
         this.iframe.allow = iframeAllowedPermissions.join(" ");
         this.iframe.setAttribute("sandbox", "allow-scripts");
         (0, code_1.default)({ id: this.origin, executor: this.executor, code, cspNonce }).then((code) => {
@@ -55,7 +58,9 @@ class IframeExecutor {
             iframe: this.iframe,
             onApprove: () => { },
             onReject: () => {
+                this.disposed = true;
                 window.removeEventListener("message", this.handler);
+                this.executor.releaseCamera(this);
                 this.events.emit("close", {});
                 this.popup.destroy();
             },
@@ -65,6 +70,9 @@ class IframeExecutor {
     on(event, callback) {
         this.events.on(event, callback);
     }
+    off(event, callback) {
+        this.events.off(event, callback);
+    }
     show() {
         this.popup.show();
     }
@@ -72,15 +80,20 @@ class IframeExecutor {
         this.popup.hide();
     }
     postMessage(data) {
-        if (!this.iframe.contentWindow)
-            throw new Error("Iframe not loaded");
-        this.iframe.contentWindow.postMessage({ ...data, origin: this.origin }, "*");
+        if (this.disposed)
+            return;
+        const contentWindow = this.iframe.contentWindow;
+        if (!contentWindow)
+            throw new Error(`Iframe not loaded for ${data?.method ?? "unknown method"}`);
+        contentWindow.postMessage({ ...data, origin: this.origin }, "*");
     }
     get contentWindow() {
         return this.iframe.contentWindow;
     }
     dispose() {
+        this.disposed = true;
         window.removeEventListener("message", this.handler);
+        this.executor.releaseCamera(this);
         this.popup.destroy();
     }
 }

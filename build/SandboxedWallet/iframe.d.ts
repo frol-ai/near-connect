@@ -2,6 +2,7 @@ import SandboxExecutor from "./executor";
 declare class IframeExecutor {
     readonly executor: SandboxExecutor;
     readonly origin: string;
+    disposed: boolean;
     private iframe;
     private events;
     private popup;
@@ -10,6 +11,7 @@ declare class IframeExecutor {
     readonly readyPromise: Promise<void>;
     constructor(executor: SandboxExecutor, code: string, onMessage: (iframe: IframeExecutor, event: MessageEvent) => void, cspNonce?: string);
     on(event: "close", callback: () => void): void;
+    off(event: "close", callback: () => void): void;
     show(): void;
     hide(): void;
     postMessage(data: any): void;

@@ -38,6 +38,16 @@ class Popup {
             this.delegate.onReject();
             this.destroy();
         };
+        // Escape closes the popup with the same semantics as clicking the
+        // backdrop. Document-level, so it works regardless of focus.
+        const onKeydown = (e) => {
+            if (e.key !== "Escape")
+                return;
+            this.delegate.onReject();
+            this.destroy();
+        };
+        document.addEventListener("keydown", onKeydown);
+        this.disposables.push(() => document.removeEventListener("keydown", onKeydown));
     }
     update(state) {
         this.state = { ...this.state, ...state };
@@ -46,6 +56,7 @@ class Popup {
     }
     create({ show = true }) {
         this.root.className = `${ID} hot-connector-popup`;
+        this.root.style.display = "none";
         this.root.innerHTML = this.dom.html;
         document.body.append(this.root);
         this.handlers();
@@ -53,7 +64,6 @@ class Popup {
         const modalContent = this.root.querySelector(".modal-content");
         modalContent.style.transform = "translateY(50px)";
         modalContainer.style.opacity = "0";
-        this.root.style.display = "none";
         if (show) {
             setTimeout(() => this.show(), 10);
         }
@@ -82,6 +92,10 @@ class Popup {
         if (this.isClosed)
             return;
         this.isClosed = true;
+        // Element listeners die with root.remove(), but document-level ones
+        // (Escape) must be disposed explicitly or they leak per popup open.
+        this.disposables.forEach((dispose) => dispose());
+        this.disposables = [];
         this.hide();
         setTimeout(() => {
             this.root.remove();
