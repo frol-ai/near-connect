@@ -39,6 +39,7 @@ class IframeExecutor {
       iframeAllowedPermissions.push("publickey-credentials-create *;");
       iframeAllowedPermissions.push("publickey-credentials-get *;");
     }
+    if (this.executor.checkPermissions("camera")) iframeAllowedPermissions.push("camera *;");
     this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 
@@ -54,6 +55,7 @@ class IframeExecutor {
       onReject: () => {
         this.disposed = true;
         window.removeEventListener("message", this.handler);
+        this.executor.releaseCamera(this);
         this.events.emit("close", {});
         this.popup.destroy();
       },
@@ -92,6 +94,7 @@ class IframeExecutor {
   dispose() {
     this.disposed = true;
     window.removeEventListener("message", this.handler);
+    this.executor.releaseCamera(this);
     this.popup.destroy();
   }
 }

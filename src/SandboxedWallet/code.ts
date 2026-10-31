@@ -312,6 +312,20 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           },
         },
 
+        // Camera, run by the dApp page: a sandboxed (opaque-origin) iframe can't
+        // get a camera permission prompt of its own. Frames arrive as ImageData.
+        camera: {
+          async start(options) {
+            return await window.selector.call("camera.start", options || {});
+          },
+          async frame(options) {
+            return await window.selector.call("camera.frame", options || {});
+          },
+          async stop() {
+            return await window.selector.call("camera.stop", {});
+          },
+        },
+
         storage: {
           async set(key, value) {
             await window.selector.call("storage.set", { key, value });

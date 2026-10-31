@@ -107,6 +107,8 @@ export interface WalletPermissions {
   hid?: boolean;
   bluetooth?: boolean;
   webauthn?: boolean;
+  /** Camera access (e.g. scanning QR codes from air-gapped wallets). */
+  camera?: boolean;
 }
 
 export interface SignAndSendTransactionParams {
