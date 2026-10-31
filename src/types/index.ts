@@ -106,6 +106,7 @@ export interface WalletPermissions {
   usb?: boolean;
   hid?: boolean;
   bluetooth?: boolean;
+  webauthn?: boolean;
 }
 
 export interface SignAndSendTransactionParams {
@@ -135,6 +136,80 @@ export interface SignDelegateActionsResponse {
   signedDelegateActions: string[];
 }
 
+/**
+ * NEP-641 domain-separated JSON payload (recommended top-level `payload`
+ * structure). Since the dApp accepts only payloads it issued byte-for-byte,
+ * `domain` and `action` rule out cross-dApp and cross-action replay.
+ */
+export interface Nep641JsonPayload {
+  /** dApp or protocol domain, e.g. `near.com` or `Near MPC`. */
+  domain: string;
+  /** Action taken on the dApp/protocol, e.g. `Login` or `Sign`. */
+  action: string;
+  /** dApp-specific message: plain text or JSON; may carry nonces, deadlines, TTLs, etc. */
+  msg: string;
+}
+
+/**
+ * NEP-641 `OffchainMessage`: the standardized signable envelope. Signature-based
+ * resolvers MUST verify a signature over the entire message.
+ */
+export interface Nep641OffchainMessage {
+  /** Chain ID, e.g. `mainnet`. */
+  chain_id: string;
+  /** Account this message authorizes for. */
+  signer_id: string;
+  /** Bottom-up path to the top-level resolver. Empty (or omitted) = top-level. */
+  path?: string[];
+  /** UNIX timestamp at signing, RFC-3339 string. */
+  timestamp: string;
+  /** The authorized payload. */
+  payload: string;
+}
+
+/**
+ * NEP-641 `AccessKeyAuthorization`: the standardized blob for accounts verified
+ * against full-access keys (no contract to define one).
+ */
+export interface Nep641AccessKeyAuthorization {
+  /** Signed offchain message. */
+  msg: Nep641OffchainMessage;
+  /** Signature schema and signing metadata. */
+  via: { schema: "nep413"; extra: { callback_url?: string } };
+  /** Access key with `FullAccess` permission: `ed25519:...` | `secp256k1:...`. */
+  access_key: string;
+  /** Signature: `ed25519:...` | `secp256k1:...`. */
+  signature: string;
+}
+
+export interface ResolveAuthParams {
+  network?: Network;
+  /**
+   * Chain ID bound into the signed `OffchainMessage`. Defaults to `network`
+   * (`mainnet` / `testnet`); set explicitly for custom networks (e.g. a
+   * sandbox), where it MUST match the chain ID reported by the RPC.
+   */
+  chainId?: string;
+  /**
+   * The payload to authorize. It is opaque to the protocol; dApps SHOULD use the
+   * human-readable {@link Nep641JsonPayload} structure (pretty-printed JSON) so
+   * wallets render it consistently. The dApp accepts only payloads it issued,
+   * byte-for-byte, so replay protection (nonces, expiry) lives inside it.
+   */
+  payload: string;
+}
+
+export interface ResolveAuthResponse {
+  accountId: string;
+  /**
+   * JSON-stringified NEP-641 authorization blob to pass to
+   * `w_resolve_auth(path: [], authorization)` on `accountId` — or, for a
+   * regular account, an {@link Nep641AccessKeyAuthorization} verified
+   * offchain against the account's full-access keys.
+   */
+  authorization: string;
+}
+
 export interface WalletManifest {
   id: string;
   platform: string[];
@@ -161,6 +236,7 @@ export interface WalletFeatures {
   signDelegateActions: boolean;
   /** The wallet can sign AddKey with gasKeyInfo, TransferToGasKey and WithdrawFromGasKey (protocol 85+). Off unless verified per wallet. */
   gasKeys?: boolean;
+  resolveAuth: boolean;
   mainnet: boolean;
   testnet: boolean;
 }
@@ -209,6 +285,19 @@ export interface NearWalletBase {
   signMessage(params: SignMessageParams): Promise<SignedMessage>;
 
   signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse>;
+
+  /**
+   * NEP-641: authorize `payload` offchain and return the authorization blob.
+   *
+   * Wallet contracts return their contract-defined blob (resolved by the dApp
+   * through the `w_resolve_auth(path, authorization)` view call); regular
+   * accounts return an {@link Nep641AccessKeyAuthorization} — the
+   * `OffchainMessage` envelope signed via NEP-413 with a full-access key,
+   * which the dApp verifies offchain. See `verifyResolveAuth`.
+   *
+   * Only available when the wallet's `resolveAuth` feature is `true`.
+   */
+  resolveAuth?(params: ResolveAuthParams): Promise<ResolveAuthResponse>;
 }
 
 export interface EventMap {

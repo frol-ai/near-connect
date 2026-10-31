@@ -12,10 +12,17 @@ import {
   type AccountWithSignedMessage,
   type SignInAndSignMessageParams,
   type SignInParams,
+  type ResolveAuthParams,
+  type ResolveAuthResponse,
 } from "../types";
 import { NearConnector } from "../NearConnector";
 import { nearActionsToConnectorActions } from "../actions";
 import { assertGasKeyActionsSupported } from "../actions/gas-keys";
+import {
+  defaultResolveAuthViaSignMessage,
+  isResolveAuthMethodNotFound,
+  polyfillSignInAndSignMessage,
+} from "../helpers/resolveAuth";
 import SandboxExecutor from "./executor";
 
 export class SandboxWallet {
@@ -36,17 +43,26 @@ export class SandboxWallet {
   }
 
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
-    return this.executor.call("wallet:signInAndSignMessage", {
-      network: data?.network ?? this.connector.network,
-      addFunctionCallKey: data?.addFunctionCallKey,
-      messageParams: data.messageParams,
-    });
+    const network = data?.network ?? this.connector.network;
+    if (this.manifest.features?.signInAndSignMessage === true) {
+      return this.executor.call("wallet:signInAndSignMessage", {
+        network,
+        addFunctionCallKey: data?.addFunctionCallKey,
+        messageParams: data.messageParams,
+      });
+    }
+    return polyfillSignInAndSignMessage(this, { ...data, network });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
     const args = { ...data, network: data?.network ?? this.connector.network };
+    // The wallet's own `wallet:signOut` handler owns its storage lifecycle: it
+    // clears session/sensitive keys and may deliberately KEEP non-sensitive
+    // caches (e.g. a passkey wallet keeps its rawId -> publicKey map to skip
+    // RPC lookups and recognise returning/additional accounts on this device).
+    // The host must NOT blanket-wipe the wallet's storage space here — that
+    // destroyed those caches regardless of the wallet's intent.
     await this.executor.call("wallet:signOut", args);
-    await this.executor.clearStorage();
   }
 
   async getAccounts(data?: { network?: Network }): Promise<Array<Account>> {
@@ -88,6 +104,22 @@ export class SandboxWallet {
     };
     assertGasKeyActionsSupported(this.manifest.features, args.delegateActions.flatMap((delegateAction) => delegateAction.actions), this.manifest.name);
     return this.executor.call("wallet:signDelegateActions", args);
+  }
+
+  async resolveAuth(params: ResolveAuthParams): Promise<ResolveAuthResponse> {
+    const args = { ...params, network: params.network ?? this.connector.network };
+    if (this.manifest.features?.resolveAuth === true) {
+      try {
+        return await this.executor.call("wallet:resolveAuth", args);
+      } catch (e) {
+        // Manifest may advertise `resolveAuth: true` for a wallet that hasn't
+        // implemented it natively — that's the signal that the default
+        // signMessage-based fallback is acceptable. Only swallow the specific
+        // "method not found" signal; any other error is a real failure.
+        if (!isResolveAuthMethodNotFound(e)) throw e;
+      }
+    }
+    return defaultResolveAuthViaSignMessage(this, args);
   }
 }
 

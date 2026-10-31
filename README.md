@@ -103,6 +103,31 @@ This library supports two types of actions when using methods like `signAndSendT
 
 You can use the old action format or the near-api-js format (recommended).
 
+## Offchain authorization (NEP-641)
+
+[NEP-641](https://github.com/near/NEPs/blob/master/neps/nep-0641.md) lets a dApp obtain an authorization of an arbitrary `payload` from **any** NEAR account — a regular keyed account, a wallet contract (passkey, EIP-712/Ethereum, ...), a multisig — and verify it offchain without a transaction. Typical use: login with proof of account ownership.
+
+```ts
+// 1. dApp backend issues a unique payload (NEP-641 recommends this JSON shape)
+const payload = JSON.stringify({ domain: "example.app", action: "Login", msg: "<nonce, expiry>" }, null, 2);
+
+// 2. Wallet authorizes it. Every wallet with `signMessage` supports `resolveAuth`:
+//    regular accounts sign the NEP-641 `OffchainMessage` envelope via NEP-413 with a
+//    full-access key; wallet contracts return their own contract-defined blob.
+const wallet = await connector.wallet(await connector.selectWallet({ features: { resolveAuth: true } }));
+const { accountId, authorization } = await wallet.resolveAuth({ payload, network: "mainnet" });
+
+// 3. dApp backend resolves the authorization against a single pinned final block:
+//    `w_resolve_auth(path, authorization)` on wallet contracts (recursively through
+//    `pending` sub-authorizations), or full-access-key verification for regular accounts.
+const result = await verifyResolveAuth({ rpcUrl, accountId, authorization });
+if (result.status !== "RESOLVED" || result.payload !== payload) throw new Error("unauthorized");
+```
+
+`verifyResolveAuth` is a reference TypeScript resolver; backends may use the Rust reference implementation (`defuse-nep641`, [near/intents](https://github.com/near/intents/tree/main/crates/signatures/nep641)) instead. Both accept the same blobs.
+
+For custom networks (e.g. a sandbox) pass `chainId` to both calls — it MUST match the chain ID reported by the RPC, as it is bound into the signed envelope.
+
 ## Wallet integration
 
 The developer writes a self-hosted script that implements the integration of their wallet and adds a description to the common [manifest](./repository/manifest.json):

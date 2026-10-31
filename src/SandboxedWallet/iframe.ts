@@ -35,6 +35,10 @@ class IframeExecutor {
     if (this.executor.checkPermissions("clipboardRead")) iframeAllowedPermissions.push("clipboard-read;");
     if (this.executor.checkPermissions("clipboardWrite")) iframeAllowedPermissions.push("clipboard-write;");
     if (this.executor.checkPermissions("bluetooth")) iframeAllowedPermissions.push("bluetooth *;");
+    if (this.executor.checkPermissions("webauthn")) {
+      iframeAllowedPermissions.push("publickey-credentials-create *;");
+      iframeAllowedPermissions.push("publickey-credentials-get *;");
+    }
     this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 
@@ -75,6 +79,10 @@ class IframeExecutor {
     const contentWindow = this.iframe.contentWindow;
     if (!contentWindow) throw new Error(`Iframe not loaded for ${data?.method ?? "unknown method"}`);
     contentWindow.postMessage({ ...data, origin: this.origin }, "*");
+  }
+
+  get contentWindow(): Window | null {
+    return this.iframe.contentWindow;
   }
 
   dispose() {
