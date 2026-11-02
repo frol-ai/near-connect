@@ -89,6 +89,14 @@ export interface WalletPermissions {
     webauthn?: boolean;
     /** Camera access (e.g. scanning QR codes from air-gapped wallets). */
     camera?: boolean;
+    /**
+     * Keep the wallet's sandbox iframe alive (hidden) between calls instead of
+     * creating a fresh one per call — for executors that hold a live device
+     * connection (e.g. Ledger over Bluetooth, which would otherwise ask the user
+     * to pick the device again on every request). The iframe is disposed on
+     * `signOut` or when the user closes the wallet modal.
+     */
+    keepAlive?: boolean;
 }
 export interface SignAndSendTransactionParams {
     network?: Network;
@@ -201,14 +209,6 @@ export interface WalletManifest {
     type: "sandbox" | "injected";
     permissions: WalletPermissions;
     features: WalletFeatures;
-    /**
-     * Keep the wallet's sandbox iframe alive (hidden) between calls instead of
-     * creating a fresh one per call — for executors that hold a live device
-     * connection (e.g. Ledger over Bluetooth, which would otherwise ask the user
-     * to pick the device again on every request). The iframe is disposed on
-     * `signOut` or when the user closes the wallet modal.
-     */
-    keepAlive?: boolean;
     debug?: boolean;
 }
 export interface WalletFeatures {

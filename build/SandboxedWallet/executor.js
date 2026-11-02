@@ -84,7 +84,7 @@ class SandboxExecutor {
     manifest;
     activePanels = {};
     storageSpace;
-    /** The `keepAlive` iframe, reused across calls (see WalletManifest.keepAlive). */
+    /** The `keepAlive` iframe, reused across calls (see WalletPermissions.keepAlive). */
     keptAlive = null;
     /** Live camera streams run on behalf of sandboxed wallets, per iframe. */
     cameras = new Map();
@@ -595,7 +595,7 @@ class SandboxExecutor {
     }
     /** A fresh iframe per call, or the kept-alive one for `keepAlive` wallets. */
     acquireIframe() {
-        if (!this.manifest.keepAlive)
+        if (!this.manifest.permissions.keepAlive)
             return this.createIframe();
         if (this.keptAlive)
             return this.keptAlive.iframe;

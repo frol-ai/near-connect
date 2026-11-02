@@ -6,7 +6,7 @@ declare class SandboxExecutor {
     readonly manifest: WalletManifest;
     private activePanels;
     readonly storageSpace: string;
-    /** The `keepAlive` iframe, reused across calls (see WalletManifest.keepAlive). */
+    /** The `keepAlive` iframe, reused across calls (see WalletPermissions.keepAlive). */
     private keptAlive;
     /** Live camera streams run on behalf of sandboxed wallets, per iframe. */
     private cameras;
